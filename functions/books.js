@@ -28,65 +28,56 @@ function checkPassword(headers) {
 }
 
 exports.handler = async function(event, context) {
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Password'
-    };
+  const headers = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+  };
 
-    if (event.httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 200,
-            headers,
-            body: 'OK'
-        };
-    }
+  if (event.httpMethod === 'OPTIONS') {
+      return {
+          statusCode: 200,
+          headers,
+          body: 'OK'
+      };
+  }
 
-    // Validar el password en la cabecera antes de procesar la solicitud
-    if (!checkPassword(event.headers)) {
-        return {
-            statusCode: 401,
-            headers,
-            body: JSON.stringify({ message: 'Password incorrecto' })
-        };
-    }
+  // Obtener el password desde los parámetros de la URL
+  const password = event.queryStringParameters && event.queryStringParameters.password;
 
-    try {
-        const method = event.httpMethod;
+  // Validar el password
+  if (password !== process.env.USER_PASSWORD) {
+      return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({ message: 'Password incorrecto' })
+      };
+  }
 
-        if (method === 'GET') {
-            const books = await Book.find();
-            return {
-                statusCode: 200,
-                headers,
-                body: JSON.stringify(books)
-            };
-        }
+  try {
+      const method = event.httpMethod;
 
-        if (method === 'POST') {
-            const data = JSON.parse(event.body);
-            const newBook = new Book(data);
-            const savedBook = await newBook.save();
-            await sendToQueue({ action: 'add', entity: 'book', data: savedBook });
-            return {
-                statusCode: 201,
-                headers,
-                body: JSON.stringify(savedBook)
-            };
-        }
+      if (method === 'GET') {
+          const books = await Book.find();
+          return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify(books)
+          };
+      }
 
-        // Otros métodos PUT, DELETE seguirán igual
+      // Otros métodos como POST, PUT, DELETE permanecen iguales
 
-        return {
-            statusCode: 405,
-            headers,
-            body: JSON.stringify({ message: 'Método no permitido' })
-        };
-    } catch (error) {
-        return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ error: error.message })
-        };
-    }
+      return {
+          statusCode: 405,
+          headers,
+          body: JSON.stringify({ message: 'Método no permitido' })
+      };
+  } catch (error) {
+      return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: error.message })
+      };
+  }
 };
