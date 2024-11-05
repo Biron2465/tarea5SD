@@ -21,7 +21,7 @@ async function sendToQueue(message) {
     }
 }
 
-// Validar el password
+// Validar el password usando el encabezado
 function checkPassword(headers) {
     const password = headers['x-password'];
     return password === process.env.USER_PASSWORD;
@@ -31,7 +31,7 @@ exports.handler = async function(event, context) {
   const headers = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
+      'Access-Control-Allow-Headers': 'Content-Type, X-Password'
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -42,11 +42,8 @@ exports.handler = async function(event, context) {
       };
   }
 
-  // Obtener el password desde los parámetros de la URL
-  const password = event.queryStringParameters && event.queryStringParameters.password;
-
-  // Validar el password
-  if (password !== process.env.USER_PASSWORD) {
+  // Validar el password directamente desde el encabezado
+  if (!checkPassword(event.headers)) {
       return {
           statusCode: 401,
           headers,
