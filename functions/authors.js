@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 const amqp = require('amqplib'); // Para conectar a RabbitMQ
-const Author = require('../models/Author'); // Asegúrate de tener un modelo adecuado para Author
+const Author = require('../models/Author'); // Modelo para Author
 require('dotenv').config();
 
 // Conectar a MongoDB (solo se conecta si aún no está conectado)
 if (mongoose.connection.readyState === 0) {
-    mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+  mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 }
 
 // Función para conectar y enviar mensajes a RabbitMQ
@@ -24,11 +24,17 @@ async function sendToQueue(message) {
   }
 }
 
-exports.handler = async function(event, context) {
+// Validar el password usando el encabezado
+function checkPassword(headers) {
+  const password = headers['x-password'];
+  return password === process.env.USER_PASSWORD;
+}
+
+exports.handler = async function (event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Password',
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -36,6 +42,15 @@ exports.handler = async function(event, context) {
       statusCode: 200,
       headers,
       body: 'OK',
+    };
+  }
+
+  // Validar el password antes de proceder
+  if (!checkPassword(event.headers)) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ message: 'Password incorrecto' })
     };
   }
 
@@ -57,10 +72,10 @@ exports.handler = async function(event, context) {
       const data = JSON.parse(event.body);
       const newAuthor = new Author(data);
       const savedAuthor = await newAuthor.save();
-      
+
       // Enviar mensaje a RabbitMQ para operación 'add'
       await sendToQueue({ action: 'add', entity: 'author', data: savedAuthor });
-      
+
       return {
         statusCode: 201,
         headers,
@@ -78,10 +93,10 @@ exports.handler = async function(event, context) {
           body: JSON.stringify({ message: 'Autor no encontrado' }),
         };
       }
-      
+
       // Enviar mensaje a RabbitMQ para operación 'update'
       await sendToQueue({ action: 'update', entity: 'author', data: updatedAuthor });
-      
+
       return {
         statusCode: 200,
         headers,
@@ -100,10 +115,10 @@ exports.handler = async function(event, context) {
           body: JSON.stringify({ message: 'Autor no encontrado' }),
         };
       }
-      
+
       // Enviar mensaje a RabbitMQ para operación 'delete'
       await sendToQueue({ action: 'delete', entity: 'author', id });
-      
+
       return {
         statusCode: 204,
         headers,
@@ -121,6 +136,6 @@ exports.handler = async function(event, context) {
       statusCode: 500,
       headers,
       body: JSON.stringify({ error: error.message }),
-    };
-  }
+    };
+  }
 };
